@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Markdown styling */
+.markdown {
+  @apply text-gray-800 dark:text-gray-200;
+}
+
+.markdown h1 {
+  @apply text-3xl font-bold mt-6 mb-4;
+}
+
+.markdown h2 {
+  @apply text-2xl font-bold mt-5 mb-3;
+}
+
+.markdown h3 {
+  @apply text-xl font-semibold mt-4 mb-2;
+}
+
+.markdown p {
+  @apply mb-4 leading-relaxed;
+}
+
+.markdown ul {
+  @apply list-disc list-inside mb-4 ml-4;
+}
+
+.markdown ol {
+  @apply list-decimal list-inside mb-4 ml-4;
+}
+
+.markdown li {
+  @apply mb-2;
+}
+
+.markdown a {
+  @apply text-blue-600 hover:text-blue-800 underline;
+}
+
+.markdown code {
+  @apply bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono;
+}
+
+.markdown pre {
+  @apply bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 overflow-x-auto;
+}
+
+.markdown img {
+  @apply max-w-full h-auto rounded-lg my-4;
+}
+
+.markdown blockquote {
+  @apply border-l-4 border-gray-300 pl-4 italic my-4;
+}
+
+.markdown strong {
+  @apply font-bold;
+}
+
+.markdown em {
+  @apply italic;
+}
