@@ -6,7 +6,7 @@ Example: "my ps5 fan is loud" -> "PlayStation 5 fan noise"
 """
 
 from typing import TYPE_CHECKING
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 import logging
 
 if TYPE_CHECKING:

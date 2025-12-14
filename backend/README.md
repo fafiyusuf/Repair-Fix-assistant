@@ -43,10 +43,10 @@ Edit `.env` with your credentials:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# LLM Provider (choose one)
-OPENAI_API_KEY=your-openai-api-key
-# OR
-# GEMINI_API_KEY=your-gemini-api-key
+# LLM Provider (Gemini 2.0 Flash recommended)
+GEMINI_API_KEY=your-gemini-api-key
+# OR (alternative)
+# OPENAI_API_KEY=your-openai-api-key
 
 # Optional: Web search fallback
 TAVILY_API_KEY=your-tavily-api-key
@@ -210,8 +210,8 @@ All iFixit API responses are cleaned before being passed to the LLM:
 
 The agent automatically selects the LLM based on available API keys:
 
-- If `OPENAI_API_KEY` is set → uses GPT-4 Turbo
-- Else if `GEMINI_API_KEY` is set → uses Gemini Pro
+- If `GEMINI_API_KEY` is set → uses **Gemini 2.0 Flash** (recommended - faster & cheaper)
+- Else if `OPENAI_API_KEY` is set → uses GPT-4 Turbo
 - Else → raises error
 
 ### Token Limits
@@ -306,7 +306,7 @@ asyncio.run(test())
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
-OPENAI_API_KEY=your-production-openai-key
+GEMINI_API_KEY=your-production-gemini-key
 ENVIRONMENT=production
 LOG_LEVEL=WARNING
 ```
@@ -341,7 +341,8 @@ fly deploy
 
 ### "No LLM API key configured"
 
-- Ensure either `OPENAI_API_KEY` or `GEMINI_API_KEY` is set in `.env`
+- Ensure `GEMINI_API_KEY` is set in `.env` (recommended)
+- Or set `OPENAI_API_KEY` as an alternative
 
 ### "Failed to connect to Supabase"
 

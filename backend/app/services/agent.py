@@ -15,7 +15,6 @@ Each node is implemented in a separate file under app/services/nodes/
 
 from typing import TypedDict, List, Dict, Optional
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.core.config import get_settings
 
@@ -51,21 +50,15 @@ class AgentState(TypedDict):
 
 
 def get_llm():
-    """Get configured LLM instance."""
-    if settings.openai_api_key:
-        return ChatOpenAI(
-            api_key=settings.openai_api_key,
-            model="gpt-4-turbo-preview",
-            temperature=0.1
-        )
-    elif settings.gemini_api_key:
-        return ChatGoogleGenerativeAI(
-            api_key=settings.gemini_api_key,
-            model="gemini-pro",
-            temperature=0.1
-        )
-    else:
-        raise ValueError("No LLM API key configured")
+    """Get configured LLM instance. Uses Gemini 2.0 Flash."""
+    if not settings.gemini_api_key:
+        raise ValueError("GEMINI_API_KEY is not configured. Please set it in your .env file")
+    
+    return ChatGoogleGenerativeAI(
+        api_key=settings.gemini_api_key,
+        model="gemini-2.0-flash-exp",
+        temperature=0.1
+    )
 
 
 def should_use_fallback(state: AgentState) -> str:

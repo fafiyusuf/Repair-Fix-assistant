@@ -16,8 +16,11 @@ from app.core.config import get_settings
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.services.agent import agent_graph
+import logging
 
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Repair Fix Assistant API",
@@ -57,6 +60,16 @@ async def root():
     }
 
 
+@app.get("/api/test")
+async def test_endpoint():
+    """Test endpoint without authentication."""
+    return {
+        "message": "Backend is working!",
+        "gemini_configured": bool(settings.gemini_api_key),
+        "supabase_configured": bool(settings.supabase_url)
+    }
+
+
 @app.post("/api/sessions", response_model=ChatSession)
 async def create_session(
     user_id: str = Depends(get_current_user),
@@ -75,11 +88,14 @@ async def create_session(
             "user_id": user_id,
             "created_at": created_at
         }).execute()
-        
+
         return ChatSession(session_id=session_id, created_at=created_at)
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+        # Log full exception with traceback for debugging
+        logger.exception("Failed to create chat session for user_id=%s", user_id)
+        # Return a generic message but keep details in server logs
+        raise HTTPException(status_code=500, detail="Failed to create session (see server logs)")
 
 
 @app.get("/api/sessions")

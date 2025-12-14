@@ -26,7 +26,7 @@ AI-powered device repair assistant using verified iFixit guides. Built with Next
 ### Backend
 - **FastAPI** (Python 3.11+)
 - **LangGraph** for agent orchestration
-- **OpenAI/Gemini** for LLM
+- **Google Gemini 2.0 Flash** for LLM (OpenAI GPT-4 also supported)
 - **Supabase** for PostgreSQL database
 - **Server-Sent Events** for streaming responses
 
@@ -44,7 +44,7 @@ AI-powered device repair assistant using verified iFixit guides. Built with Next
 - **Node.js** 18+ and npm
 - **Python** 3.11+
 - **Supabase** account ([create free account](https://supabase.com))
-- **OpenAI** or **Gemini** API key
+- **Google Gemini** API key ([get free key](https://ai.google.dev/)) or **OpenAI** API key
 - **VPN** (required for iFixit API access in some regions)
 
 ### 1. Clone the Repository
@@ -88,10 +88,10 @@ Edit `.env` with your credentials:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Choose one LLM provider
-OPENAI_API_KEY=your-openai-api-key
+# LLM Provider (Gemini 2.0 Flash recommended)
+GEMINI_API_KEY=your-gemini-api-key
 # OR
-# GEMINI_API_KEY=your-gemini-api-key
+# OPENAI_API_KEY=your-openai-api-key
 
 # Optional: for web search fallback
 TAVILY_API_KEY=your-tavily-api-key
@@ -259,7 +259,7 @@ Example queries to try:
 |-------|-----------|
 | Frontend | Next.js 14, TypeScript, Tailwind CSS |
 | Backend | FastAPI, Python 3.11+ |
-| AI/Agent | LangGraph, OpenAI/Gemini |
+| AI/Agent | LangGraph, Google Gemini 2.0 Flash |
 | Database | Supabase (PostgreSQL) |
 | Auth | Supabase Auth (JWT) |
 | Tools | iFixit API, DuckDuckGo/Tavily |
