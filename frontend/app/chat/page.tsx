@@ -1,12 +1,16 @@
 'use client'
 
-import { supabase } from '@/lib/supabase'
-import { BarChart3, Loader2, LogOut, Send } from 'lucide-react'
+import { BarChart3, ExternalLink, Loader2, LogOut, Menu, Send, Square, Wrench } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
+import { SessionHistory } from '@/components/SessionHistory'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   role: 'user' | 'assistant' | 'status'
@@ -14,153 +18,328 @@ interface Message {
   timestamp: Date
 }
 
+// Custom components for ReactMarkdown
+const markdownComponents: Components = {
+  a: ({ node, children, href, ...props }) => (
+    <a 
+      href={href} 
+      target="_blank" 
+      rel="noopener noreferrer" 
+      className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 underline decoration-primary-600/30 dark:decoration-primary-400/30 underline-offset-2 hover:decoration-primary-600 dark:hover:decoration-primary-400 transition-colors font-medium"
+      {...props}
+    >
+      {children}
+      <ExternalLink className="w-3 h-3 inline-block" />
+    </a>
+  ),
+  code: ({ node, inline, className, children, ...props }: any) => {
+    if (inline) {
+      return (
+        <code 
+          className="bg-gray-100 dark:bg-gray-800 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded text-[0.875em] font-mono border border-gray-200 dark:border-gray-700"
+          {...props}
+        >
+          {children}
+        </code>
+      )
+    }
+    return (
+      <code 
+        className={`${className} block bg-gray-900 dark:bg-gray-950 text-gray-100 p-4 rounded-lg overflow-x-auto border border-gray-700 dark:border-gray-800`}
+        {...props}
+      >
+        {children}
+      </code>
+    )
+  },
+  ol: ({ node, children, ...props }) => (
+    <ol className="list-decimal mb-4 space-y-2" style={{ paddingLeft: '1.5rem' }} {...props}>
+      {children}
+    </ol>
+  ),
+  ul: ({ node, children, ...props }) => (
+    <ul className="list-disc mb-4 space-y-2" style={{ paddingLeft: '1.5rem' }} {...props}>
+      {children}
+    </ul>
+  ),
+}
+
 export default function ChatPage() {
   const router = useRouter()
+
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sessionRefresh, setSessionRefresh] = useState(0) // Trigger for session list refresh
 
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const streamingMessageRef = useRef<boolean>(false)
+
+  /* ---------------- Auth + Session ---------------- */
   useEffect(() => {
     checkAuth()
-    createSession()
+    // Don't create session immediately - wait for first message
   }, [])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    if (sessionId) loadConversationHistory()
+  }, [sessionId])
+
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) {
       router.push('/auth/login')
-    } else {
-      setUser(session.user)
+      return
     }
+    setUser(data.session.user)
   }
 
-  const createSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+  const loadConversationHistory = async () => {
+    if (!sessionId) return
+    setLoadingHistory(true)
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) return
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/sessions/${sessionId}/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
         }
-      })
-      const data = await response.json()
-      setSessionId(data.session_id)
-    } catch (error) {
-      console.error('Failed to create session:', error)
+      )
+
+      if (!res.ok) return
+
+      const json = await res.json()
+      const history: Message[] = json.messages.map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      }))
+
+      setMessages(history)
+    } catch (err) {
+      console.error('Load history failed', err)
+    } finally {
+      setLoadingHistory(false)
     }
   }
 
+  /* ---------------- Helpers ---------------- */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const handleStop = () => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setLoading(false)
+    setLoadingStatus('')
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: '⚠️ Response cancelled by user.',
+        timestamp: new Date(),
+      },
+    ])
+  }
+
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+    }
+  }
+
+  /* ---------------- Chat Submit ---------------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading || !sessionId) return
+    if (!input.trim() || loading) return
 
-    const userMessage: Message = {
-      role: 'user',
-      content: input,
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
-    setInput('')
-    setLoading(true)
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+    // Create session on first message if it doesn't exist
+    let currentSessionId = sessionId
+    if (!currentSessionId) {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) {
         router.push('/auth/login')
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat/stream`, {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/sessions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        })
+
+        const json = await res.json()
+        currentSessionId = json.session_id
+        setSessionId(currentSessionId)
+      } catch (err) {
+        console.error('Create session failed', err)
+        return
+      }
+    }
+
+    const userMessage: Message = {
+      role: 'user',
+      content: input,
+      timestamp: new Date(),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInput('')
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+    setLoading(true)
+    setLoadingStatus('Starting search...')
+    streamingMessageRef.current = false // Reset streaming flag
+
+    abortControllerRef.current = new AbortController()
+
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) {
+        router.push('/auth/login')
+        return
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          Authorization: `Bearer ${data.session.access_token}`,
         },
         body: JSON.stringify({
-          message: input,
-          session_id: sessionId
-        })
+          message: userMessage.content,
+          session_id: currentSessionId,
+        }),
+        signal: abortControllerRef.current.signal,
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to get response')
-      }
+      if (!res.body) throw new Error('No stream')
 
-      // Process SSE stream
-      const reader = response.body?.getReader()
+      const reader = res.body.getReader()
       const decoder = new TextDecoder()
-
-      if (!reader) {
-        throw new Error('No reader available')
-      }
-
-      let assistantMessage = ''
+      let assistantText = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
         const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+          const payload = JSON.parse(line.slice(6))
 
-            if (data.type === 'status') {
-              // Add status message
-              setMessages(prev => [...prev, {
-                role: 'status',
-                content: data.content,
-                timestamp: new Date()
-              }])
-            } else if (data.type === 'response') {
-              // Remove status messages and add final response
-              setMessages(prev => {
-                const withoutStatus = prev.filter(m => m.role !== 'status')
-                return [...withoutStatus, {
+          if (payload.type === 'status') {
+            setLoadingStatus(payload.content)
+          }
+
+          if (payload.type === 'response') {
+            assistantText = payload.content
+            setLoadingStatus('')
+            
+            // Update or add the streaming assistant message
+            setMessages((prev) => {
+              // If we haven't added the streaming message yet, add it
+              if (!streamingMessageRef.current) {
+                streamingMessageRef.current = true
+                return [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    content: assistantText,
+                    timestamp: new Date(),
+                  },
+                ]
+              }
+              
+              // Otherwise, update the last assistant message (the streaming one)
+              const lastIndex = prev.length - 1
+              if (lastIndex >= 0 && prev[lastIndex].role === 'assistant') {
+                return [
+                  ...prev.slice(0, lastIndex),
+                  {
+                    ...prev[lastIndex],
+                    content: assistantText,
+                  },
+                ]
+              }
+              
+              // Fallback: just add the message
+              return [
+                ...prev,
+                {
                   role: 'assistant',
-                  content: data.content,
-                  timestamp: new Date()
-                }]
-              })
-              assistantMessage = data.content
-            } else if (data.type === 'error') {
-              setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: `❌ Error: ${data.content}`,
-                timestamp: new Date()
-              }])
-            } else if (data.type === 'done') {
-              break
-            }
+                  content: assistantText,
+                  timestamp: new Date(),
+                },
+              ]
+            })
           }
         }
       }
-    } catch (error) {
-      console.error('Error:', error)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '❌ Sorry, something went wrong. Please try again.',
-        timestamp: new Date()
-      }])
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error(err)
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '❌ Something went wrong. Try again.',
+            timestamp: new Date(),
+          },
+        ])
+      }
     } finally {
       setLoading(false)
+      setLoadingStatus('')
+      abortControllerRef.current = null
+      
+      // Refresh session list to show updated title
+      setSessionRefresh(prev => prev + 1)
     }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
+  }
+
+  /* ---------------- Session Controls ---------------- */
+  const handleSessionSelect = async (id: string) => {
+    setSessionId(id)
+    setMessages([])
+    setSidebarOpen(false)
+  }
+
+  const handleNewSession = () => {
+    setMessages([])
+    setSessionId(null) // Clear session ID - new session will be created on first message
+    setSidebarOpen(false)
   }
 
   const handleSignOut = async () => {
@@ -168,118 +347,213 @@ export default function ChatPage() {
     router.push('/')
   }
 
+  /* ---------------- UI ---------------- */
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="container mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Repair Fix Assistant
-          </h1>
+    <div className="flex h-screen bg-gray-50 dark:bg-chat-bg">
+      {/* Sidebar */}
+      <SessionHistory
+        currentSessionId={sessionId}
+        onSessionSelect={handleSessionSelect}
+        onNewSession={handleNewSession}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        refreshTrigger={sessionRefresh}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Navigation Bar */}
+        <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-sidebar-border bg-white dark:bg-sidebar">
           <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span className="hidden sm:inline">Analytics</span>
-            </Link>
+            {/* Mobile menu button */}
             <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-sidebar-hover transition-colors"
+              aria-label="Open sidebar"
             >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Sign Out</span>
+              <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+            </button>
+
+            {/* Logo and Title */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
+                <Wrench className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white hidden sm:block">
+                Repair Fix Assistant
+              </h1>
+            </div>
+          </div>
+
+          {/* Right side actions */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            
+            <Link 
+              href="/dashboard" 
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-sidebar-hover transition-colors"
+              title="Dashboard"
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span className="hidden sm:inline text-sm font-medium">Dashboard</span>
+            </Link>
+
+            <button 
+              onClick={handleSignOut} 
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-sidebar-hover transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="hidden sm:inline text-sm font-medium">Sign Out</span>
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="container mx-auto max-w-4xl px-4 py-8">
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">🔧</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Ready to help you fix your device
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {messages.length === 0 && !loadingHistory ? (
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center h-full px-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary-500 flex items-center justify-center mb-6">
+                <Wrench className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                How can I help you today?
               </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Describe your device issue and I'll find official repair guides from iFixit
+              <p className="text-gray-500 dark:text-gray-400 text-center max-w-md">
+                Describe your device issue and I&apos;ll find the best repair guides from iFixit for you.
               </p>
+
+              {/* Example prompts */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8 w-full max-w-2xl">
+                {[
+                  'My iPhone screen is cracked',
+                  'MacBook Pro won\'t turn on',
+                  'Samsung Galaxy battery drains fast',
+                  'Nintendo Switch Joy-Con drift',
+                ].map((prompt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setInput(prompt)}
+                    className="p-4 text-left border border-gray-200 dark:border-sidebar-border rounded-xl hover:bg-gray-50 dark:hover:bg-sidebar-hover transition-colors text-gray-700 dark:text-gray-300 text-sm"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            /* Chat Messages */
+            <div className="max-w-3xl mx-auto px-4 py-6">
+              {messages.map((m, i) => (
+                <div 
+                  key={i} 
+                  className={`py-6 ${i !== 0 ? 'border-t border-gray-100 dark:border-sidebar-border' : ''}`}
                 >
-                  <div
-                    className={`max-w-3xl rounded-lg px-6 py-4 ${
-                      message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : message.role === 'status'
-                        ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-md'
-                    }`}
-                  >
-                    {message.role === 'status' ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">{message.content}</span>
+                  <div className="flex gap-4">
+                    {/* Avatar */}
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                      m.role === 'user' 
+                        ? 'bg-primary-400 text-white' 
+                        : 'bg-primary-600 text-white'
+                    }`}>
+                      {m.role === 'user' ? (
+                        <span className="text-sm font-medium">
+                          {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      ) : (
+                        <Wrench className="w-4 h-4" />
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white mb-1 text-sm">
+                        {m.role === 'user' ? 'You' : 'Repair Fix Assistant'}
                       </div>
-                    ) : message.role === 'assistant' ? (
-                      <div className="markdown prose dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p>{message.content}</p>
-                    )}
+                      {m.role === 'assistant' ? (
+                        <div className="prose max-w-none text-gray-700 dark:text-gray-300">
+                          <ReactMarkdown 
+                            remarkPlugins={[remarkGfm]}
+                            components={markdownComponents}
+                          >
+                            {m.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{m.content}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
+
+              {/* Loading Status */}
+              {loading && loadingStatus && (
+                <div className="py-6 border-t border-gray-100 dark:border-sidebar-border">
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
+                      <Wrench className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{loadingStatus}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
           )}
         </div>
-      </div>
 
-      {/* Input */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-4">
-        <div className="container mx-auto max-w-4xl">
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe your device issue (e.g., 'my PS5 fan is loud')..."
-              disabled={loading}
-              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
+        {/* Input Area */}
+        <div className="border-t border-gray-200 dark:border-sidebar-border bg-white dark:bg-sidebar p-4">
+          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+            <div className="relative flex items-end bg-gray-100 dark:bg-chat-user rounded-2xl border border-gray-200 dark:border-sidebar-border focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  adjustTextareaHeight()
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe your device issue..."
+                disabled={loading}
+                rows={1}
+                className="flex-1 bg-transparent px-4 py-3 resize-none focus:outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 max-h-[200px]"
+              />
+
               {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="hidden sm:inline">Processing...</span>
-                </>
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  className="m-2 p-2 rounded-lg bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                  title="Stop generating"
+                >
+                  <Square className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                </button>
               ) : (
-                <>
+                <button
+                  type="submit"
+                  disabled={!input.trim()}
+                  className={`m-2 p-2 rounded-lg transition-colors ${
+                    input.trim()
+                      ? 'bg-primary-500 hover:bg-primary-600 text-white'
+                      : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  }`}
+                  title="Send message"
+                >
                   <Send className="w-5 h-5" />
-                  <span className="hidden sm:inline">Send</span>
-                </>
+                </button>
               )}
-            </button>
+            </div>
+            <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
+              Powered by iFixit repair guides. Results may vary based on device model.
+            </p>
           </form>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-            Powered by iFixit API + LangGraph
-          </p>
         </div>
       </div>
     </div>

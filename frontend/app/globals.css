@@ -4,26 +4,19 @@
 
 :root {
   --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 249, 250, 251;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 33, 33, 33;
+  --background-end-rgb: 23, 23, 23;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: rgb(var(--background-start-rgb));
 }
 
 @layer utilities {
@@ -32,63 +25,159 @@ body {
   }
 }
 
-/* Markdown styling */
-.markdown {
-  @apply text-gray-800 dark:text-gray-200;
+/* Custom Scrollbar Styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-.markdown h1 {
-  @apply text-3xl font-bold mt-6 mb-4;
+.scrollbar-thin:hover {
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
 }
 
-.markdown h2 {
-  @apply text-2xl font-bold mt-5 mb-3;
+.dark .scrollbar-thin:hover {
+  scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
 }
 
-.markdown h3 {
-  @apply text-xl font-semibold mt-4 mb-2;
+/* Webkit browsers (Chrome, Safari, Edge) */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
 }
 
-.markdown p {
-  @apply mb-4 leading-relaxed;
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.markdown ul {
-  @apply list-disc list-inside mb-4 ml-4;
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
 }
 
-.markdown ol {
-  @apply list-decimal list-inside mb-4 ml-4;
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
 }
 
-.markdown li {
+.dark .scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(75, 85, 99, 0.5);
+}
+
+/* Enhanced Prose/Markdown Styling for Chat */
+.prose {
+  @apply text-gray-800 dark:text-gray-200 leading-relaxed;
+}
+
+/* Headings */
+.prose h1 {
+  @apply text-2xl font-bold text-gray-900 dark:text-white mt-6 mb-4;
+}
+
+.prose h2 {
+  @apply text-xl font-bold text-gray-900 dark:text-white mt-5 mb-3;
+}
+
+.prose h3 {
+  @apply text-lg font-semibold text-gray-900 dark:text-white mt-4 mb-2;
+}
+
+.prose h4 {
+  @apply text-base font-semibold text-gray-900 dark:text-white mt-3 mb-2;
+}
+
+/* Paragraphs */
+.prose p {
+  @apply mb-4 leading-relaxed text-gray-700 dark:text-gray-300;
+}
+
+/* Lists */
+.prose ul {
+  @apply list-disc mb-4 space-y-2;
+  padding-left: 1.5rem;
+}
+
+.prose ol {
+  @apply list-decimal mb-4 space-y-2;
+  padding-left: 1.5rem;
+}
+
+.prose li {
+  @apply text-gray-700 dark:text-gray-300 leading-relaxed;
+}
+
+.prose li > p {
   @apply mb-2;
 }
 
-.markdown a {
-  @apply text-blue-600 hover:text-blue-800 underline;
+.prose li > ul,
+.prose li > ol {
+  @apply mt-2;
 }
 
-.markdown code {
-  @apply bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono;
+/* Links */
+.prose a {
+  @apply text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 underline decoration-primary-600/30 dark:decoration-primary-400/30 underline-offset-2 hover:decoration-primary-600 dark:hover:decoration-primary-400 transition-colors font-medium;
 }
 
-.markdown pre {
-  @apply bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 overflow-x-auto;
+/* Inline Code */
+.prose code {
+  @apply bg-gray-100 dark:bg-gray-800 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded text-[0.875em] font-mono border border-gray-200 dark:border-gray-700;
 }
 
-.markdown img {
-  @apply max-w-full h-auto rounded-lg my-4;
+/* Code Blocks */
+.prose pre {
+  @apply bg-gray-900 dark:bg-gray-950 text-gray-100 p-4 rounded-lg mb-4 overflow-x-auto border border-gray-700 dark:border-gray-800;
 }
 
-.markdown blockquote {
-  @apply border-l-4 border-gray-300 pl-4 italic my-4;
+.prose pre code {
+  @apply bg-transparent text-gray-100 border-0 p-0 text-sm;
 }
 
-.markdown strong {
-  @apply font-bold;
+/* Blockquotes */
+.prose blockquote {
+  @apply border-l-4 border-primary-500 bg-primary-50 dark:bg-gray-800/50 pl-4 pr-4 py-2 italic my-4 text-gray-700 dark:text-gray-300 rounded-r;
 }
 
-.markdown em {
+/* Tables */
+.prose table {
+  @apply w-full border-collapse mb-4;
+}
+
+.prose th {
+  @apply bg-gray-100 dark:bg-gray-800 font-semibold text-left p-3 border border-gray-200 dark:border-gray-700;
+}
+
+.prose td {
+  @apply p-3 border border-gray-200 dark:border-gray-700;
+}
+
+/* Horizontal Rule */
+.prose hr {
+  @apply my-6 border-gray-200 dark:border-gray-700;
+}
+
+/* Strong and Emphasis */
+.prose strong {
+  @apply font-bold text-gray-900 dark:text-white;
+}
+
+.prose em {
   @apply italic;
+}
+
+/* Images */
+.prose img {
+  @apply max-w-full h-auto rounded-lg my-4 border border-gray-200 dark:border-gray-700;
+}
+
+/* Task Lists */
+.prose input[type="checkbox"] {
+  @apply mr-2;
+}
+
+/* Ensure proper spacing */
+.prose > *:first-child {
+  @apply mt-0;
+}
+
+.prose > *:last-child {
+  @apply mb-0;
 }

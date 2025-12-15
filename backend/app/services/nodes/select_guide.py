@@ -28,12 +28,19 @@ async def select_guide_node(state: "AgentState") -> "AgentState":
     """
     state["tool_status"].append("Selecting most relevant guide...")
     
-    guides = state["available_guides"]
+    guides = state.get("available_guides") or []
     user_query = state["query"].lower()
     
     # Simple relevance scoring
     best_guide = None
     best_score = 0
+    
+    # Check if guides list is valid
+    if not guides:
+        state["selected_guide"] = None
+        state["tool_status"].append("No guides available to select from")
+        logger.warning("No guides available in state")
+        return state
     
     for guide in guides:
         score = 0

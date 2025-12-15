@@ -26,6 +26,7 @@ from app.services.nodes.select_guide import select_guide_node
 from app.services.nodes.fetch_guide import fetch_guide_node
 from app.services.nodes.fallback_search import fallback_search_node
 from app.services.nodes.format_response import format_response_node
+from app.services.nodes.conversational_response import conversational_response_node, _is_followup_question
 
 import logging
 
@@ -38,8 +39,9 @@ class AgentState(TypedDict):
     user_id: str
     session_id: str
     messages: List[Dict]
-    query: str
-    normalized_query: Optional[str]
+    query: str  # Original user query with symptoms/issues
+    normalized_query: Optional[str]  # Full normalized query (deprecated - use ifixit_device)
+    ifixit_device: Optional[str]  # IMMUTABLE: Canonical device name for iFixit API only
     selected_device: Optional[Dict]
     available_guides: Optional[List[Dict]]
     selected_guide: Optional[Dict]
@@ -56,7 +58,7 @@ def get_llm():
     
     return ChatGoogleGenerativeAI(
         api_key=settings.gemini_api_key,
-        model="gemini-2.0-flash-exp",
+        model="gemini-2.5-flash",
         temperature=0.1
     )
 
@@ -81,18 +83,37 @@ def should_use_fallback(state: AgentState) -> str:
     return "format"
 
 
+def route_initial_query(state: AgentState) -> str:
+    """
+    Routing function to determine if query is a follow-up question or new repair request.
+    
+    Returns:
+        "conversational" if this is a follow-up question
+        "normalize" if this is a new repair request
+    """
+    if _is_followup_question(state):
+        logger.info("Detected follow-up question - using conversational response")
+        return "conversational"
+    
+    logger.info("New repair request - starting full workflow")
+    return "normalize"
+
+
 def create_agent_graph() -> StateGraph:
     """
     Create the LangGraph state machine.
     
     Flow:
-    User Input -> Normalize -> Search Device -> List Guides -> Select Guide -> Fetch Guide -> Format
-                                    ↓ (fail)        ↓ (fail)      ↓ (fail)
-                                         → Fallback Search → Format
+    User Input -> [Route] -> Conversational Response (for follow-ups)
+                     |
+                     └-> Normalize -> Search Device -> List Guides -> Select Guide -> Fetch Guide -> Format
+                                           ↓ (fail)        ↓ (fail)      ↓ (fail)
+                                                → Fallback Search → Format
     """
     workflow = StateGraph(AgentState)
     
     # Add nodes (imported from separate files)
+    workflow.add_node("conversational_response", conversational_response_node)
     workflow.add_node("normalize_query", normalize_query_node)
     workflow.add_node("search_device", search_device_node)
     workflow.add_node("list_guides", list_guides_node)
@@ -101,8 +122,17 @@ def create_agent_graph() -> StateGraph:
     workflow.add_node("fallback_search", fallback_search_node)
     workflow.add_node("format_response", format_response_node)
     
-    # Define edges
-    workflow.set_entry_point("normalize_query")
+    # Define entry point with routing
+    workflow.add_conditional_edges(
+        "__start__",
+        route_initial_query,
+        {
+            "conversational": "conversational_response",
+            "normalize": "normalize_query"
+        }
+    )
+    
+    # Define edges for repair workflow
     workflow.add_edge("normalize_query", "search_device")
     workflow.add_edge("search_device", "list_guides")
     workflow.add_edge("list_guides", "select_guide")
@@ -120,6 +150,7 @@ def create_agent_graph() -> StateGraph:
     workflow.add_edge("fetch_guide", "format_response")
     workflow.add_edge("fallback_search", "format_response")
     workflow.add_edge("format_response", END)
+    workflow.add_edge("conversational_response", END)
     
     return workflow.compile()
 

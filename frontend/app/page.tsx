@@ -1,14 +1,14 @@
-import { Wrench } from 'lucide-react'
+import { BookOpen, Shield, Wrench, Zap } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <main className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto text-center">
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="bg-blue-600 p-4 rounded-full">
+            <div className="bg-primary-500 p-4 rounded-full">
               <Wrench className="w-16 h-16 text-white" />
             </div>
           </div>
@@ -26,13 +26,13 @@ export default function Home() {
           <div className="flex gap-4 justify-center mb-16">
             <Link 
               href="/auth/login"
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              className="px-8 py-3 bg-primary-500 text-white rounded-lg font-semibold hover:bg-primary-600 transition-colors"
             >
               Sign In
             </Link>
             <Link 
               href="/auth/signup"
-              className="px-8 py-3 bg-white text-blue-600 border-2 border-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              className="px-8 py-3 bg-white text-primary-600 border-2 border-primary-500 rounded-lg font-semibold hover:bg-primary-50 transition-colors"
             >
               Sign Up
             </Link>
@@ -41,7 +41,9 @@ export default function Home() {
           {/* Features */}
           <div className="grid md:grid-cols-3 gap-8 mt-16">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-              <div className="text-3xl mb-4">🔧</div>
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <BookOpen className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                 Official iFixit Guides
               </h3>
@@ -51,7 +53,9 @@ export default function Home() {
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-              <div className="text-3xl mb-4">⚡</div>
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Zap className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                 Real-time Streaming
               </h3>
@@ -61,7 +65,9 @@ export default function Home() {
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-              <div className="text-3xl mb-4">🎯</div>
+              <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Shield className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                 No Hallucinations
               </h3>
@@ -77,11 +83,11 @@ export default function Home() {
               Powered By
             </h2>
             <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-              <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full">Next.js</span>
-              <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full">FastAPI</span>
-              <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full">LangGraph</span>
-              <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full">Supabase</span>
-              <span className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full">OpenAI/Gemini</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">Next.js</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">FastAPI</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">LangGraph</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">Supabase</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">OpenAI/Gemini</span>
             </div>
           </div>
         </div>

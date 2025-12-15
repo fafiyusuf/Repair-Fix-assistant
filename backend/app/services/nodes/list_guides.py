@@ -17,6 +17,9 @@ async def list_guides_node(state: "AgentState") -> "AgentState":
     """
     List available repair guides for the device.
     
+    Uses ONLY the canonical device name from selected_device.
+    NEVER passes guide titles or troubleshooting phrases to iFixit API.
+    
     Args:
         state: Current agent state
         
@@ -27,18 +30,42 @@ async def list_guides_node(state: "AgentState") -> "AgentState":
     
     state["tool_status"].append("Fetching available repair guides...")
     
-    ifixit = get_ifixit_tools()
-    device_title = state["selected_device"]["title"]
+    # Check if we have a selected device
+    if not state.get("selected_device"):
+        state["available_guides"] = None
+        state["tool_status"].append("No device selected")
+        logger.warning("No device selected for listing guides")
+        return state
     
-    result = await ifixit.list_guides(device_title)
+    ifixit = get_ifixit_tools()
+    device_title = state["selected_device"].get("title")
+    
+    if not device_title:
+        state["available_guides"] = None
+        state["tool_status"].append("Device has no title")
+        logger.warning("Selected device has no title")
+        return state
+    
+    # CRITICAL: Clean device title to remove any guide-like suffixes
+    # iFixit category API only accepts device names, not guide titles
+    cleaned_title = device_title
+    for invalid_suffix in [
+        " Troubleshooting", " Repair", " Replacement", " Disassembly",
+        " Teardown", " Won't Work", " Not Working", " Doesn't Work"
+    ]:
+        if cleaned_title.endswith(invalid_suffix):
+            cleaned_title = cleaned_title.replace(invalid_suffix, "")
+            logger.info(f"Cleaned device title: '{device_title}' -> '{cleaned_title}'")
+    
+    result = await ifixit.list_guides(cleaned_title)
     
     if result and result.get("guides"):
         state["available_guides"] = result["guides"]
         state["tool_status"].append(f"Found {len(result['guides'])} repair guides")
-        logger.info(f"Found {len(result['guides'])} guides for {device_title}")
+        logger.info(f"Found {len(result['guides'])} guides for {cleaned_title}")
     else:
         state["available_guides"] = None
         state["tool_status"].append("No repair guides available")
-        logger.warning(f"No guides found for: {device_title}")
+        logger.warning(f"No guides found for: {cleaned_title}")
     
     return state

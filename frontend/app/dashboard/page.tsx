@@ -1,5 +1,6 @@
 'use client'
 
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { supabase } from '@/lib/supabase'
 import { ArrowLeft, BarChart3, MessageSquare, Zap } from 'lucide-react'
 import Link from 'next/link'
@@ -60,7 +61,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading analytics...</p>
         </div>
       </div>
@@ -75,7 +76,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <Link
               href="/chat"
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Back to Chat</span>
@@ -84,7 +85,7 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Usage Analytics
           </h1>
-          <div className="w-32"></div> {/* Spacer for centering */}
+          <ThemeToggle />
         </div>
       </header>
 
@@ -94,8 +95,8 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="bg-blue-100 dark:bg-blue-900/20 p-3 rounded-lg">
-                <Zap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div className="bg-primary-100 dark:bg-primary-900/20 p-3 rounded-lg">
+                <Zap className="w-6 h-6 text-primary-600 dark:text-primary-400" />
               </div>
             </div>
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
@@ -108,8 +109,8 @@ export default function DashboardPage() {
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="bg-green-100 dark:bg-green-900/20 p-3 rounded-lg">
-                <MessageSquare className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div className="bg-primary-200 dark:bg-primary-800/20 p-3 rounded-lg">
+                <MessageSquare className="w-6 h-6 text-primary-700 dark:text-primary-300" />
               </div>
             </div>
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
@@ -122,8 +123,8 @@ export default function DashboardPage() {
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="bg-purple-100 dark:bg-purple-900/20 p-3 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <div className="bg-primary-300 dark:bg-primary-700/20 p-3 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-primary-800 dark:text-primary-200" />
               </div>
             </div>
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
@@ -165,7 +166,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     href={`/chat?session=${session.id}`}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm"
                   >
                     View
                   </Link>

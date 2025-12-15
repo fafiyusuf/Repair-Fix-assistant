@@ -27,8 +27,16 @@ async def fetch_guide_node(state: "AgentState") -> "AgentState":
     
     state["tool_status"].append("Fetching repair instructions...")
     
+    # Check if a guide was selected
+    selected_guide = state.get("selected_guide")
+    if not selected_guide or "guideid" not in selected_guide:
+        state["repair_steps"] = None
+        state["tool_status"].append("No guide selected to fetch")
+        logger.warning("Cannot fetch guide - no guide selected")
+        return state
+    
     ifixit = get_ifixit_tools()
-    guide_id = state["selected_guide"]["guideid"]
+    guide_id = selected_guide["guideid"]
     
     result = await ifixit.fetch_repair_guide(guide_id)
     

@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     # Optional: JWT secret for verifying Supabase tokens (production)
     supabase_jwt_secret: str | None = None
+    # Optional: Direct DB connection string (for migrations/scripts only)
+    supabase_db_url: str | None = None
     
     # LLM Provider
     openai_api_key: str | None = None

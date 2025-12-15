@@ -17,7 +17,7 @@ async def search_device_node(state: "AgentState") -> "AgentState":
     """
     Search for device on iFixit.
     
-    Uses the normalized query to find the canonical device.
+    Uses ONLY the immutable ifixit_device name (no symptoms/issues).
     
     Args:
         state: Current agent state
@@ -29,8 +29,16 @@ async def search_device_node(state: "AgentState") -> "AgentState":
     
     state["tool_status"].append("Searching iFixit for device...")
     
+    # CRITICAL: Use only the immutable device name for iFixit API
+    device_name = state.get("ifixit_device")
+    
+    if not device_name:
+        logger.error("No ifixit_device in state - normalization failed")
+        state["selected_device"] = None
+        return state
+    
     ifixit = get_ifixit_tools()
-    result = await ifixit.search_devices(state["normalized_query"])
+    result = await ifixit.search_devices(device_name)
     
     if result and result.get("devices"):
         # Select the first (most relevant) device
@@ -40,6 +48,6 @@ async def search_device_node(state: "AgentState") -> "AgentState":
     else:
         state["selected_device"] = None
         state["tool_status"].append("No device found on iFixit")
-        logger.warning(f"No device found for: {state['normalized_query']}")
+        logger.warning(f"No device found for: {device_name}")
     
     return state

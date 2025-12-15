@@ -8,6 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    title VARCHAR(100) DEFAULT 'New Chat',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -35,6 +36,8 @@ CREATE TABLE IF NOT EXISTS usage_stats (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
     tokens_used INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

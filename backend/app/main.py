@@ -15,8 +15,11 @@ import uuid
 from app.core.config import get_settings
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.tokens import count_tokens, count_message_tokens
+from app.core.context import prepare_context_for_agent, trim_conversation_history
 from app.services.agent import agent_graph
 import logging
+import re
 
 settings = get_settings()
 
@@ -48,6 +51,72 @@ class ChatSession(BaseModel):
     """Response model for session creation."""
     session_id: str
     created_at: str
+    title: Optional[str] = None
+
+
+def generate_session_title(message: str) -> str:
+    """
+    Generate a concise, descriptive title from the first user message.
+    
+    Args:
+        message: The first user message
+        
+    Returns:
+        A short, descriptive title (max 50 chars)
+    """
+    try:
+        # Try to use LLM for better title generation
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.messages import SystemMessage, HumanMessage
+        
+        settings = get_settings()
+        if settings.gemini_api_key:
+            llm = ChatGoogleGenerativeAI(
+                api_key=settings.gemini_api_key,
+                model="gemini-2.5-flash",
+                temperature=0.3
+            )
+            
+            messages = [
+                SystemMessage(content="Generate a concise 3-5 word title for this repair request. Only return the title, nothing else. Examples: 'iPhone 12 Screen Repair', 'MacBook Battery Issue', 'Samsung Galaxy Display'"),
+                HumanMessage(content=message)
+            ]
+            
+            response = llm.invoke(messages)
+            title = response.content.strip().strip('"').strip("'")
+            
+            # Ensure it's not too long
+            if len(title) > 50:
+                title = title[:47] + "..."
+            
+            return title
+    except Exception as e:
+        logger.warning(f"Could not generate AI title, using fallback: {e}")
+    
+    # Fallback to simple title generation
+    cleaned = message.strip()
+    
+    # Remove common filler words
+    filler_words = ['my', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'have', 'has', 'had', 'help', 'me', 'with']
+    words = cleaned.split()
+    
+    # Keep important words
+    important_words = [w for w in words if w.lower() not in filler_words or len(words) <= 3]
+    
+    # Reconstruct title
+    if important_words:
+        title = ' '.join(important_words[:6])  # Max 6 words
+    else:
+        title = ' '.join(words[:6])
+    
+    # Capitalize first letter of each word
+    title = ' '.join(word.capitalize() for word in title.split())
+    
+    # Truncate if too long
+    if len(title) > 50:
+        title = title[:47] + "..."
+    
+    return title if title else "New Chat"
 
 
 @app.get("/")
@@ -154,6 +223,40 @@ async def get_session_messages(
         raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
 
 
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user),
+    db = Depends(get_db)
+):
+    """
+    Delete a chat session and all its messages.
+    """
+    try:
+        # Verify session belongs to user
+        session = db.table("chat_sessions")\
+            .select("*")\
+            .eq("id", session_id)\
+            .eq("user_id", user_id)\
+            .execute()
+        
+        if not session.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Delete session (messages will cascade delete)
+        db.table("chat_sessions")\
+            .delete()\
+            .eq("id", session_id)\
+            .execute()
+        
+        return {"message": "Session deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
+
+
 async def stream_agent_response(
     user_id: str,
     session_id: str,
@@ -179,13 +282,62 @@ async def stream_agent_response(
         "created_at": datetime.utcnow().isoformat()
     }).execute()
     
+    # Update session title if this is the first message
+    try:
+        # Check if session has messages (other than the one we just added)
+        existing_messages = db.table("messages")\
+            .select("id")\
+            .eq("session_id", session_id)\
+            .execute()
+        
+        logger.info(f"Session {session_id} has {len(existing_messages.data)} message(s)")
+        
+        if len(existing_messages.data) == 1:  # Only our new message exists
+            # Generate title from first message
+            logger.info(f"Generating title for first message in session {session_id}")
+            title = generate_session_title(message)
+            logger.info(f"Generated title: {title}")
+            
+            # Update session with title
+            update_response = db.table("chat_sessions")\
+                .update({"title": title, "updated_at": datetime.utcnow().isoformat()})\
+                .eq("id", session_id)\
+                .execute()
+            
+            logger.info(f"✅ Successfully set session title to: '{title}' for session {session_id}")
+            logger.debug(f"Update response: {update_response.data}")
+    except Exception as e:
+        logger.error(f"❌ Failed to set session title for session {session_id}: {e}", exc_info=True)
+    
+    # Load conversation history for context
+    try:
+        history_response = db.table("messages")\
+            .select("role,content")\
+            .eq("session_id", session_id)\
+            .order("created_at")\
+            .execute()
+        
+        conversation_history = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in history_response.data[:-1]  # Exclude the message we just added
+        ]
+        
+        # Apply context management (trim if too long)
+        managed_context = trim_conversation_history(conversation_history)
+        
+        logger.info(f"Loaded {len(conversation_history)} messages, using {len(managed_context)} after context management")
+    except Exception as e:
+        logger.error(f"Error loading conversation history: {e}")
+        managed_context = []
+    
     # Initialize agent state
     initial_state = {
         "user_id": user_id,
         "session_id": session_id,
-        "messages": [],
-        "query": message,
-        "normalized_query": None,
+        "messages": managed_context,  # Use managed context
+        "query": message,  # Original user query with symptoms
+        "normalized_query": None,  # Deprecated - use ifixit_device
+        "ifixit_device": None,  # IMMUTABLE: Canonical device name for iFixit API
         "selected_device": None,
         "available_guides": None,
         "selected_guide": None,
@@ -196,42 +348,68 @@ async def stream_agent_response(
     }
     
     try:
-        # Stream tool status updates
+        # Execute agent graph and stream status updates
+        final_state = None
         async for event in agent_graph.astream(initial_state):
             node_name = list(event.keys())[0]
             node_output = event[node_name]
+            final_state = node_output
             
-            # Send status updates
+            # Stream tool status updates to user
             if "tool_status" in node_output and node_output["tool_status"]:
                 latest_status = node_output["tool_status"][-1]
+                logger.info(f"Agent status: {latest_status}")
+                # Send status update to frontend
                 yield f"data: {json.dumps({'type': 'status', 'content': latest_status})}\n\n"
-                await asyncio.sleep(0.1)  # Small delay for better UX
+        
+        # Send final response when complete
+        if final_state and final_state.get("final_response"):
+            final_response = final_state["final_response"]
             
-            # Send final response when available
-            if "final_response" in node_output and node_output["final_response"]:
-                final_response = node_output["final_response"]
-                
-                # Save assistant message
-                assistant_message_id = str(uuid.uuid4())
-                db.table("messages").insert({
-                    "id": assistant_message_id,
-                    "session_id": session_id,
-                    "role": "assistant",
-                    "content": final_response,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-                
-                # Track token usage (simplified - should count actual tokens)
-                estimated_tokens = len(final_response.split())
+            # Save assistant message
+            assistant_message_id = str(uuid.uuid4())
+            db.table("messages").insert({
+                "id": assistant_message_id,
+                "session_id": session_id,
+                "role": "assistant",
+                "content": final_response,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
+            
+            # Track token usage with accurate counting
+            # Count input + output tokens
+            input_tokens = count_tokens(message)
+            output_tokens = count_tokens(final_response)
+            total_tokens = input_tokens + output_tokens
+            
+            # Try to insert with new columns, fallback to old schema if needed
+            try:
                 db.table("usage_stats").insert({
                     "user_id": user_id,
                     "session_id": session_id,
-                    "tokens_used": estimated_tokens,
+                    "tokens_used": total_tokens,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "timestamp": datetime.utcnow().isoformat()
                 }).execute()
-                
-                # Stream final response
-                yield f"data: {json.dumps({'type': 'response', 'content': final_response})}\n\n"
+                logger.info(f"Token usage - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
+            except Exception as token_error:
+                # Fallback: Insert without new columns (for backwards compatibility)
+                logger.warning(f"Could not insert with input/output tokens (missing columns?), using total only: {token_error}")
+                db.table("usage_stats").insert({
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "tokens_used": total_tokens,
+                    "timestamp": datetime.utcnow().isoformat()
+                }).execute()
+                logger.info(f"Token usage - Total: {total_tokens} (input/output not tracked)")
+            
+            # Stream final response only
+            yield f"data: {json.dumps({'type': 'response', 'content': final_response})}\n\n"
+        else:
+            # No response generated
+            error_msg = "Unable to generate a response. Please try rephrasing your question."
+            yield f"data: {json.dumps({'type': 'error', 'content': error_msg})}\n\n"
         
         # Send completion signal
         yield f"data: {json.dumps({'type': 'done'})}\n\n"

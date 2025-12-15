@@ -19,14 +19,14 @@ async def normalize_query_node(state: "AgentState") -> "AgentState":
     """
     Normalize user query for better device matching.
     
-    Converts casual language to canonical device names.
-    Example: "my ps5 fan is loud" -> "PlayStation 5 fan noise"
+    Extracts ONLY the canonical device name (no symptoms/issues).
+    This device name is IMMUTABLE and used for ALL iFixit API calls.
     
     Args:
         state: Current agent state
         
     Returns:
-        Updated state with normalized_query
+        Updated state with ifixit_device (immutable device name)
     """
     from ..agent import get_llm
     
@@ -34,18 +34,36 @@ async def normalize_query_node(state: "AgentState") -> "AgentState":
     
     llm = get_llm()
     
-    prompt = f"""Convert this repair query into a clear, searchable device name and issue:
+    prompt = f"""Extract ONLY the device model/name from this repair query.
+
 Query: {state['query']}
 
-Output only the normalized query (device model + issue). Be concise.
-Example: "PlayStation 5 fan noise" """
+CRITICAL RULES:
+- Extract ONLY the device name (no symptoms, issues, or problems)
+- For laptops, prefer series name over specific model numbers
+- Never include words like "Troubleshooting", "Repair", "Won't Work", etc.
+- Output must be a clean device category name only
+
+Examples:
+- "my ps5 fan is loud" -> "PlayStation 5"
+- "iphone 12 battery dying fast" -> "iPhone 12"
+- "HP Spectre x360 is slow" -> "HP Spectre x360"
+- "dell xps 15 screen flickering" -> "Dell XPS 15"
+- "macbook pro 2020 won't turn on" -> "MacBook Pro 2020"
+
+Output ONLY the device name (nothing else):"""
     
     response = await llm.ainvoke([HumanMessage(content=prompt)])
-    normalized = response.content.strip()
+    device_name = response.content.strip()
     
-    state["normalized_query"] = normalized
-    state["tool_status"].append(f"Normalized to: {normalized}")
+    # Store in immutable field for iFixit API
+    state["ifixit_device"] = device_name
     
-    logger.info(f"Normalized '{state['query']}' -> '{normalized}'")
+    # Also update normalized_query for backward compatibility
+    state["normalized_query"] = device_name
+    
+    state["tool_status"].append(f"Device: {device_name}")
+    
+    logger.info(f"Extracted device name: '{device_name}' from query: '{state['query']}'")
     
     return state
