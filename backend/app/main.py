@@ -404,8 +404,22 @@ async def stream_agent_response(
                 }).execute()
                 logger.info(f"Token usage - Total: {total_tokens} (input/output not tracked)")
             
-            # Stream final response only
-            yield f"data: {json.dumps({'type': 'response', 'content': final_response})}\n\n"
+            # Stream final response word by word for better UX
+            words = final_response.split()
+            accumulated_text = ""
+            
+            for i, word in enumerate(words):
+                # Add word to accumulated text
+                if i == 0:
+                    accumulated_text = word
+                else:
+                    accumulated_text += " " + word
+                
+                # Send accumulated text
+                yield f"data: {json.dumps({'type': 'response', 'content': accumulated_text})}\n\n"
+                
+                # Small delay for smooth streaming (adjust as needed)
+                await asyncio.sleep(0.03)  # 30ms per word
         else:
             # No response generated
             error_msg = "Unable to generate a response. Please try rephrasing your question."
