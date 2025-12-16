@@ -41,6 +41,16 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container orchestration."""
+    return {
+        "status": "healthy",
+        "service": "IFix-AI Backend",
+        "version": "1.0.0"
+    }
+
+
 class ChatRequest(BaseModel):
     """Request model for chat endpoint."""
     message: str

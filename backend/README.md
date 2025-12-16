@@ -10,7 +10,13 @@ FastAPI backend with LangGraph agent for the Repair Fix Assistant.
 - pip
 - Virtual environment (recommended)
 
-### Installation
+**OR**
+
+- Docker and Docker Compose (for containerized deployment)
+
+### Option 1: Traditional Installation
+
+#### Installation
 
 1. **Create and activate virtual environment:**
 
@@ -63,6 +69,73 @@ uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
+
+### Option 2: Docker Deployment (Recommended for Production)
+
+#### Quick Deploy
+
+1. **Set up environment variables:**
+
+```bash
+cp .env.example .env
+# Edit .env with your credentials
+```
+
+2. **Run the deployment script:**
+
+```bash
+./deploy.sh
+```
+
+Select option 1 for production deployment with Docker Compose.
+
+#### Manual Docker Deployment
+
+**Using Docker Compose (Recommended):**
+
+```bash
+# Build and start
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+
+# Stop
+docker-compose down
+```
+
+**Using Docker CLI:**
+
+```bash
+# Build image
+docker build -t ifix-ai-backend:latest .
+
+# Run container
+docker run -d \
+  --name ifix-ai-backend \
+  -p 8000:8000 \
+  --env-file .env \
+  ifix-ai-backend:latest
+
+# View logs
+docker logs -f ifix-ai-backend
+```
+
+**Using Makefile:**
+
+```bash
+make build     # Build the Docker image
+make run       # Run the container
+make logs      # View logs
+make health    # Check health status
+make stop      # Stop container
+make clean     # Clean up everything
+```
+
+📖 **For detailed Docker deployment instructions, see [README.Docker.md](./README.Docker.md)**
+
+📋 **For production deployment checklist, see [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)**
+
 
 ## 📚 API Documentation
 

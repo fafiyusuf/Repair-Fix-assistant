@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: ifix-ai-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    volumes:
+      # Mount logs directory (optional)
+      - ./logs:/app/logs
+    networks:
+      - ifix-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Development service (uncomment for development)
+  # backend-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     target: development
+  #   container_name: ifix-ai-backend-dev
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8000:8000"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - ENVIRONMENT=development
+  #     - LOG_LEVEL=DEBUG
+  #   volumes:
+  #     # Mount source code for hot reload
+  #     - ./app:/app/app
+  #     - ./logs:/app/logs
+  #   networks:
+  #     - ifix-network
+
+networks:
+  ifix-network:
+    driver: bridge
+
+volumes:
+  logs:
