@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Application
     environment: str = "development"
     log_level: str = "INFO"
+    frontend_url: str = "http://localhost:3000"
     
     # Token limits
     max_tokens_per_response: int = 2000
