@@ -2,24 +2,25 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.1
 python-dotenv==1.0.1
-langgraph>=0.2.0,<0.3.0
+
+# LangChain stack (DO NOT pin langchain-core)
+langgraph>=0.2.43,<0.3.0
 langchain-google-genai==4.0.0
-langchain-core>=1.0.0,<2.0.0
 
 # Token counting
 tiktoken==0.5.2
 
-# Pydantic (let Supabase + FastAPI agree)
+# Pydantic
 pydantic>=2.11.7,<3.0.0
 pydantic-settings>=2.7.1,<3.0.0
 
-# Gemini
+# Gemini SDK
 google-generativeai==0.8.3
 
 # Database
 supabase==2.25.1
 
-# HTTP
+# HTTP clients
 httpx==0.26.0
 aiohttp==3.11.11
 

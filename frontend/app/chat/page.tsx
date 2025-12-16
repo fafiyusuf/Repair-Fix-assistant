@@ -52,15 +52,53 @@ const markdownComponents: Components = {
       </code>
     )
   },
+  p: ({ node, children, ...props }) => (
+    <p className="mb-4 leading-relaxed text-gray-700 dark:text-gray-300" {...props}>
+      {children}
+    </p>
+  ),
   ol: ({ node, children, ...props }) => (
-    <ol className="list-decimal mb-4 space-y-2" style={{ paddingLeft: '1.5rem' }} {...props}>
+    <ol className="list-decimal mb-4 space-y-2 pl-6" {...props}>
       {children}
     </ol>
   ),
   ul: ({ node, children, ...props }) => (
-    <ul className="list-disc mb-4 space-y-2" style={{ paddingLeft: '1.5rem' }} {...props}>
+    <ul className="list-disc mb-4 space-y-2 pl-6" {...props}>
       {children}
     </ul>
+  ),
+  li: ({ node, children, ...props }) => (
+    <li className="text-gray-700 dark:text-gray-300 leading-relaxed" {...props}>
+      {children}
+    </li>
+  ),
+  h1: ({ node, children, ...props }) => (
+    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mt-6 mb-4" {...props}>
+      {children}
+    </h1>
+  ),
+  h2: ({ node, children, ...props }) => (
+    <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-5 mb-3" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ node, children, ...props }) => (
+    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-4 mb-2" {...props}>
+      {children}
+    </h3>
+  ),
+  strong: ({ node, children, ...props }) => (
+    <strong className="font-bold text-gray-900 dark:text-white" {...props}>
+      {children}
+    </strong>
+  ),
+  blockquote: ({ node, children, ...props }) => (
+    <blockquote className="border-l-4 border-primary-500 bg-primary-50 dark:bg-gray-800 pl-4 pr-4 py-2 italic my-4 text-gray-700 dark:text-gray-300 rounded-r" {...props}>
+      {children}
+    </blockquote>
+  ),
+  hr: ({ node, ...props }) => (
+    <hr className="my-6 border-gray-200 dark:border-gray-700" {...props} />
   ),
 }
 

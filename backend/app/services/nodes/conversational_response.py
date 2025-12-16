@@ -5,6 +5,7 @@ Handles follow-up questions and general conversation without needing to fetch ne
 This node is used when the user asks clarifying questions about existing repair information.
 """
 
+import re
 from typing import TYPE_CHECKING
 from langchain_core.messages import HumanMessage, SystemMessage
 import logging
@@ -13,6 +14,27 @@ if TYPE_CHECKING:
     from ..agent import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+def _fix_markdown_formatting(text: str) -> str:
+    """
+    Post-process text to fix common markdown formatting issues.
+    Converts asterisk lists to proper dash lists and ensures proper spacing.
+    """
+    # Replace asterisk bullets with dash bullets
+    # Match lines starting with * followed by space
+    text = re.sub(r'^\* ', '- ', text, flags=re.MULTILINE)
+    
+    # Ensure blank line before lists (if not already present)
+    text = re.sub(r'([^\n])\n(- )', r'\1\n\n\2', text)
+    
+    # Ensure blank line after lists (if not already present)
+    text = re.sub(r'(- [^\n]+)\n([^\n-])', r'\1\n\n\2', text)
+    
+    # Fix multiple consecutive blank lines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text
 
 
 def _is_followup_question(state: "AgentState") -> bool:
@@ -124,7 +146,40 @@ When answering questions:
 - Suggest helpful follow-up questions
 - Encourage the user to ask for more help if needed
 
-Keep responses focused and not too long. Use Markdown formatting for better readability."""
+**CRITICAL FORMATTING RULES:**
+- NEVER use asterisks (*) for bullet points - ALWAYS use dashes (-)
+- For bullet points, use: `- Item` (dash + space + text)
+- For numbered lists, use: `1. Item` (number + period + space + text)
+- Add a blank line before every list
+- Add a blank line after every list
+- Use proper line breaks between paragraphs
+- Use `**bold**` for emphasis (double asterisks around text)
+- Each list item MUST be on its own line
+- DO NOT use `* Item` - it's WRONG, use `- Item` instead
+
+Example of CORRECT formatting:
+```
+That's a great question! 🧺
+
+The repair procedures vary depending on several factors:
+
+- **Top-loaders vs. Front-loaders**: These have very different internal layouts
+- **Different Brands**: Each manufacturer has unique designs
+- **Age of Machine**: Older models are simpler than modern ones
+
+To give you the best advice, I need to know your specific model.
+```
+
+Example of WRONG formatting (DO NOT DO THIS):
+```
+* Top-loaders vs. Front-loaders: Different layouts
+* Different Brands: Unique designs
+```
+
+To give you the best advice, I need to know your specific model.
+```
+
+Keep responses focused and well-formatted. Use proper Markdown syntax consistently."""
 
     context_messages.append(SystemMessage(content=system_prompt))
     
@@ -148,8 +203,11 @@ Keep responses focused and not too long. Use Markdown formatting for better read
         
         response = await llm.ainvoke(context_messages)
         
-        # Add helpful follow-up based on context
+        # Get response content and fix markdown formatting
         response_text = response.content
+        
+        # Apply markdown formatting fixes
+        response_text = _fix_markdown_formatting(response_text)
         
         # Check if this was a greeting
         query_lower = query.lower()
