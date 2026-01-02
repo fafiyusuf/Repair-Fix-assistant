@@ -1,6 +1,6 @@
 'use client'
 
-import { BarChart3, ChevronLeft, ChevronRight, ExternalLink, LogOut, Menu, Send, Square, Wrench, X, ZoomIn } from 'lucide-react'
+import { BarChart3, ChevronLeft, ChevronRight, ExternalLink, Loader2, LogOut, Menu, Send, Square, Wrench, X, ZoomIn } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import React, { useEffect, useRef, useState } from 'react'
@@ -221,11 +221,10 @@ const markdownComponents: Components = {
   img: () => null,
 }
 
-// Message Component with image extraction - NOT memoized to ensure proper streaming updates
-const MessageContent = ({ content }: { content: string }) => {
-  // Extract images and text content
-  const images = React.useMemo(() => extractImages(content), [content])
-  const textContent = React.useMemo(() => removeImageMarkdown(content), [content])
+// Memoized Message Component with image extraction
+const MessageContent = React.memo(({ content }: { content: string }) => {
+  const images = extractImages(content)
+  const textContent = removeImageMarkdown(content)
 
   return (
     <div className="space-y-3">
@@ -234,13 +233,14 @@ const MessageContent = ({ content }: { content: string }) => {
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
           components={markdownComponents}
+          key={textContent.length}
         >
           {textContent}
         </ReactMarkdown>
       </div>
     </div>
   )
-}
+})
 
 MessageContent.displayName = 'MessageContent'
 
@@ -428,8 +428,6 @@ export default function ChatPage() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let assistantText = ''
-      let lastUpdateTime = 0
-      const UPDATE_THROTTLE = 50 // Update UI every 50ms max for smoother rendering
 
       while (true) {
         const { done, value } = await reader.read()
@@ -449,41 +447,11 @@ export default function ChatPage() {
             assistantText = payload.content
             setLoadingStatus('')
             
-            // Throttle updates to prevent overwhelming React
-            const now = Date.now()
-            const shouldUpdate = now - lastUpdateTime >= UPDATE_THROTTLE
-            
-            if (shouldUpdate || payload.type === 'done') {
-              lastUpdateTime = now
-              
-              // Update or add the streaming assistant message
-              setMessages((prev) => {
-                // If we haven't added the streaming message yet, add it
-                if (!streamingMessageRef.current) {
-                  streamingMessageRef.current = true
-                  return [
-                    ...prev,
-                    {
-                      role: 'assistant',
-                      content: assistantText,
-                      timestamp: new Date(),
-                    },
-                  ]
-                }
-                
-                // Otherwise, update the last assistant message (the streaming one)
-                const lastIndex = prev.length - 1
-                if (lastIndex >= 0 && prev[lastIndex].role === 'assistant') {
-                  return [
-                    ...prev.slice(0, lastIndex),
-                    {
-                      ...prev[lastIndex],
-                      content: assistantText,
-                    },
-                  ]
-                }
-                
-                // Fallback: just add the message
+            // Update or add the streaming assistant message
+            setMessages((prev) => {
+              // If we haven't added the streaming message yet, add it
+              if (!streamingMessageRef.current) {
+                streamingMessageRef.current = true
                 return [
                   ...prev,
                   {
@@ -492,13 +460,9 @@ export default function ChatPage() {
                     timestamp: new Date(),
                   },
                 ]
-              })
-            }
-          }
-          
-          // Handle done signal - force final update
-          if (payload.type === 'done' && assistantText) {
-            setMessages((prev) => {
+              }
+              
+              // Otherwise, update the last assistant message (the streaming one)
               const lastIndex = prev.length - 1
               if (lastIndex >= 0 && prev[lastIndex].role === 'assistant') {
                 return [
@@ -509,7 +473,16 @@ export default function ChatPage() {
                   },
                 ]
               }
-              return prev
+              
+              // Fallback: just add the message
+              return [
+                ...prev,
+                {
+                  role: 'assistant',
+                  content: assistantText,
+                  timestamp: new Date(),
+                },
+              ]
             })
           }
         }
@@ -662,75 +635,53 @@ export default function ChatPage() {
             </div>
           ) : (
             /* Chat Messages */
-            <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-              {messages.map((m, i) => {
-                // Create a stable but unique key that changes with content
-                const contentHash = `${i}-${m.timestamp.getTime()}-${m.content.substring(0, 50)}-${m.content.length}`
-                
-                return (
-                  <div 
-                    key={contentHash}
-                    className="group"
-                  >
-                    <div className="flex gap-3">
-                      {/* Avatar */}
-                      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${
-                        m.role === 'user' 
-                          ? 'bg-gradient-to-br from-primary-400 to-primary-500 text-white' 
-                          : 'bg-gradient-to-br from-primary-600 to-primary-700 text-white'
-                      }`}>
-                        {m.role === 'user' ? (
-                          <span className="text-sm font-semibold">
-                            {user?.email?.charAt(0).toUpperCase() || 'U'}
-                          </span>
-                        ) : (
-                          <Wrench className="w-5 h-5" />
-                        )}
-                      </div>
+            <div className="max-w-3xl mx-auto px-4 py-6">
+              {messages.map((m, i) => (
+                <div 
+                  key={`${i}-${m.timestamp.getTime()}-${m.content.length}`}
+                  className={`py-6 ${i !== 0 ? 'border-t border-gray-100 dark:border-sidebar-border' : ''}`}
+                >
+                  <div className="flex gap-4">
+                    {/* Avatar */}
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                      m.role === 'user' 
+                        ? 'bg-primary-400 text-white' 
+                        : 'bg-primary-600 text-white'
+                    }`}>
+                      {m.role === 'user' ? (
+                        <span className="text-sm font-medium">
+                          {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      ) : (
+                        <Wrench className="w-4 h-4" />
+                      )}
+                    </div>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        {/* Name and timestamp */}
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="font-semibold text-gray-900 dark:text-white text-sm">
-                            {m.role === 'user' ? 'You' : 'Repair Fix Assistant'}
-                          </span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500">
-                            {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-
-                        {/* Message content - plain, no containers */}
-                        {m.role === 'assistant' ? (
-                          <MessageContent content={m.content} key={m.content.length} />
-                        ) : (
-                          <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-7">{m.content}</p>
-                        )}
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white mb-1 text-sm">
+                        {m.role === 'user' ? 'You' : 'Repair Fix Assistant'}
                       </div>
+                      {m.role === 'assistant' ? (
+                        <MessageContent content={m.content} />
+                      ) : (
+                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{m.content}</p>
+                      )}
                     </div>
                   </div>
-                )
-              })}
+                </div>
+              ))}
 
-              {/* Loading Status with typing indicator */}
+              {/* Loading Status */}
               {loading && loadingStatus && (
-                <div className="group">
-                  <div className="flex gap-3">
-                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center shadow-sm">
-                      <Wrench className="w-5 h-5 text-white" />
+                <div className="py-6 border-t border-gray-100 dark:border-sidebar-border">
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
+                      <Wrench className="w-4 h-4 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900 dark:text-white text-sm mb-1.5">
-                        Repair Fix Assistant
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                          <span className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </div>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{loadingStatus}</span>
-                      </div>
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{loadingStatus}</span>
                     </div>
                   </div>
                 </div>
@@ -741,10 +692,10 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Area - Floating style */}
-        <div className="border-t border-gray-200 dark:border-sidebar-border bg-gradient-to-b from-white to-gray-50 dark:from-sidebar dark:to-chat-bg p-4">
-          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-            <div className="relative flex items-end bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 focus-within:border-primary-500 dark:focus-within:border-primary-500 focus-within:ring-4 focus-within:ring-primary-500/10 transition-all">
+        {/* Input Area */}
+        <div className="border-t border-gray-200 dark:border-sidebar-border bg-white dark:bg-sidebar p-4">
+          <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+            <div className="relative flex items-end bg-gray-100 dark:bg-chat-user rounded-2xl border border-gray-200 dark:border-sidebar-border focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -756,7 +707,7 @@ export default function ChatPage() {
                 placeholder="Describe your device issue..."
                 disabled={loading}
                 rows={1}
-                className="flex-1 bg-transparent px-5 py-4 resize-none focus:outline-none text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 max-h-[200px] scrollbar-thin"
+                className="flex-1 bg-transparent px-4 py-3 resize-none focus:outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 max-h-[200px]"
               />
 
               {loading ? (
