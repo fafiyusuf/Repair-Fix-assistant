@@ -146,7 +146,6 @@ def create_agent_graph() -> StateGraph:
             "format": "fetch_guide"
         }
     )
-    
     workflow.add_edge("fetch_guide", "format_response")
     workflow.add_edge("fallback_search", "format_response")
     workflow.add_edge("format_response", END)

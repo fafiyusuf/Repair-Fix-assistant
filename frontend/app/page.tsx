@@ -87,7 +87,7 @@ export default function Home() {
               <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">FastAPI</span>
               <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">LangGraph</span>
               <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">Supabase</span>
-              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">OpenAI/Gemini</span>
+              <span className="px-4 py-2 bg-primary-50 dark:bg-gray-700 rounded-full">Gemini</span>
             </div>
           </div>
         </div>

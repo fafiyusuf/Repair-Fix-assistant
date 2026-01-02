@@ -2,8 +2,8 @@
 
 import { BarChart3, ExternalLink, Loader2, LogOut, Menu, Send, Square, Wrench } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import React, { useEffect, useRef, useState } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -102,8 +102,26 @@ const markdownComponents: Components = {
   ),
 }
 
+// Memoized Message Component to prevent unnecessary re-renders during streaming
+const MessageContent = React.memo(({ content }: { content: string }) => {
+  return (
+    <div className="prose max-w-none text-gray-700 dark:text-gray-300">
+      <ReactMarkdown 
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        key={content.length} // Force re-render when content length changes
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+})
+
+MessageContent.displayName = 'MessageContent'
+
 export default function ChatPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -123,7 +141,11 @@ export default function ChatPage() {
   /* ---------------- Auth + Session ---------------- */
   useEffect(() => {
     checkAuth()
-    // Don't create session immediately - wait for first message
+    // Check for session ID in URL
+    const urlSessionId = searchParams.get('session')
+    if (urlSessionId) {
+      setSessionId(urlSessionId)
+    }
   }, [])
 
   useEffect(() => {
@@ -231,6 +253,8 @@ export default function ChatPage() {
         const json = await res.json()
         currentSessionId = json.session_id
         setSessionId(currentSessionId)
+        // Update URL with session ID
+        router.replace(`/chat?session=${currentSessionId}`, { scroll: false })
       } catch (err) {
         console.error('Create session failed', err)
         return
@@ -372,12 +396,16 @@ export default function ChatPage() {
     setSessionId(id)
     setMessages([])
     setSidebarOpen(false)
+    // Update URL with selected session ID
+    router.replace(`/chat?session=${id}`, { scroll: false })
   }
 
   const handleNewSession = () => {
     setMessages([])
     setSessionId(null) // Clear session ID - new session will be created on first message
     setSidebarOpen(false)
+    // Clear URL parameter
+    router.replace('/chat', { scroll: false })
   }
 
   const handleSignOut = async () => {
@@ -485,7 +513,7 @@ export default function ChatPage() {
             <div className="max-w-3xl mx-auto px-4 py-6">
               {messages.map((m, i) => (
                 <div 
-                  key={i} 
+                  key={`${i}-${m.timestamp.getTime()}-${m.content.length}`}
                   className={`py-6 ${i !== 0 ? 'border-t border-gray-100 dark:border-sidebar-border' : ''}`}
                 >
                   <div className="flex gap-4">
@@ -510,14 +538,7 @@ export default function ChatPage() {
                         {m.role === 'user' ? 'You' : 'Repair Fix Assistant'}
                       </div>
                       {m.role === 'assistant' ? (
-                        <div className="prose max-w-none text-gray-700 dark:text-gray-300">
-                          <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                            components={markdownComponents}
-                          >
-                            {m.content}
-                          </ReactMarkdown>
-                        </div>
+                        <MessageContent content={m.content} />
                       ) : (
                         <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{m.content}</p>
                       )}

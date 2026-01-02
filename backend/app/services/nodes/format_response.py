@@ -15,162 +15,205 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# -------------------------------------------------------------------
+# Conversational helpers
+# -------------------------------------------------------------------
+
 def _get_conversational_intro(state: "AgentState") -> str:
-    """Generate a friendly conversational introduction based on the query."""
+    """Generate a friendly conversational introduction."""
     query = state.get("query", "")
-    
-    # Check if this is a follow-up question
     messages = state.get("messages", [])
-    is_followup = len(messages) > 2  # More than just the current exchange
-    
+
+    is_followup = len(messages) > 2
+
     if is_followup:
         intros = [
-            "Sure! Let me help you with that. ",
-            "Great question! Here's what I found: ",
-            "I'm happy to help with that. ",
-            "Let me explain that for you. ",
+            "Sure! Let me help you with that.\n\n",
+            "Great question! Here's what I found:\n\n",
+            "I'm happy to help with that.\n\n",
+            "Let me explain this step by step.\n\n",
         ]
     else:
         intros = [
-            "I found the perfect repair guide for you! ",
-            "Great news! I found an official iFixit guide for your device. ",
-            "I've got you covered! Here's the repair information you need: ",
-            "Perfect! I found exactly what you're looking for. ",
+            "I found the perfect repair guide for you!\n\n",
+            "Great news! I found an official iFixit guide for your device.\n\n",
+            "I've got you covered! Here's the repair information you need:\n\n",
+            "Perfect! I found exactly what you're looking for.\n\n",
         ]
-    
-    # Simple selection based on query length
+
     return intros[len(query) % len(intros)]
 
 
 def _get_follow_up_suggestions(state: "AgentState") -> str:
-    """Generate helpful follow-up suggestions based on the repair context."""
+    """Generate helpful follow-up suggestions."""
     guide = state.get("repair_steps", {})
-    
+
     if not guide or state.get("fallback_used"):
-        return "\n\n---\n\n💬 **Need more help?** Feel free to ask me:\n" \
-               "- For alternative repair methods\n" \
-               "- About specific tools or parts\n" \
-               "- For troubleshooting tips\n" \
-               "- To search for a different device or issue"
-    
+        return (
+            "\n\n---\n\n"
+            "💬 **Need more help?**\n\n"
+            "- Alternative repair methods\n"
+            "- Required tools or replacement parts\n"
+            "- Troubleshooting tips\n"
+            "- Searching for a different device or issue\n"
+        )
+
     suggestions = "\n\n---\n\n💬 **What else can I help you with?**\n\n"
-    
-    # Add contextual suggestions
+
     difficulty = guide.get("difficulty", "").lower()
-    
-    if "difficult" in difficulty or "hard" in difficulty:
-        suggestions += "- Need tips to make this repair easier?\n"
-    
+
+    if "hard" in difficulty or "difficult" in difficulty:
+        suggestions += "- Tips to make this repair easier\n"
+
     if guide.get("tools"):
-        suggestions += "- Questions about any of the required tools?\n"
-    
+        suggestions += "- Questions about the required tools\n"
+
     if guide.get("parts"):
-        suggestions += "- Want to know where to buy these parts?\n"
-    
-    suggestions += "- Need clarification on any specific step?\n"
-    suggestions += "- Want to see alternatives or similar repairs?\n"
-    suggestions += "- Looking for preventive maintenance tips?\n"
-    
+        suggestions += "- Where to buy the replacement parts\n"
+
+    suggestions += (
+        "- Clarification on any step\n"
+        "- Alternative or similar repairs\n"
+        "- Preventive maintenance tips\n"
+    )
+
     return suggestions
 
 
 def _get_conversational_closing(state: "AgentState") -> str:
     """Add a friendly closing message."""
     closings = [
-        "\n\nI'm here if you have any questions about these steps! Just ask. 😊",
-        "\n\nFeel free to ask if you need clarification on any step! I'm here to help. 🔧",
-        "\n\nLet me know if you need more details about anything! Happy to assist. 👍",
-        "\n\nDon't hesitate to ask if something isn't clear! I'm here for you. ✨",
+        "\n\n💡 I'm here if you have any questions about these steps!",
+        "\n\n🔧 Feel free to ask if you need clarification on any step.",
+        "\n\n👍 Let me know if you'd like more details!",
+        "\n\n✨ Don't hesitate to ask if something isn't clear.",
     ]
-    
+
     query = state.get("query", "")
     return closings[len(query) % len(closings)]
 
 
+# -------------------------------------------------------------------
+# Main formatting node
+# -------------------------------------------------------------------
+
 async def format_response_node(state: "AgentState") -> "AgentState":
     """
     Format final response in clean Markdown with conversational elements.
-    
-    Ensures proper rendering in the frontend and encourages follow-up conversation.
-    
-    Args:
-        state: Current agent state
-        
-    Returns:
-        Updated state with final_response
     """
     state["tool_status"].append("Formatting response...")
-    
-    # Start with conversational intro
+
     response = _get_conversational_intro(state)
-    
+
+    # ---------------------------------------------------------------
+    # If repair steps exist
+    # ---------------------------------------------------------------
     if state.get("repair_steps"):
+
+        # -----------------------------
+        # Community / fallback sources
+        # -----------------------------
         if state.get("fallback_used"):
-            # Format community sources
-            response += f"\n\n## ⚠️ Community Resources\n\n"
-            response += f"I couldn't find an official iFixit guide for **{state['query']}**, but here are some helpful community resources:\n\n"
-            
-            for i, result in enumerate(state["repair_steps"].get("results", []), 1):
-                response += f"### {i}. {result.get('title', 'Result')}\n"
-                response += f"{result.get('body', '')}\n"
-                response += f"🔗 [Read more]({result.get('href', '')})\n\n"
+            response += (
+                "## ⚠️ Community Resources\n\n"
+                f"I couldn't find an official iFixit guide for "
+                f"**{state.get('query', 'this issue')}**, "
+                "but here are some helpful community resources:\n\n"
+            )
+
+            for i, result in enumerate(
+                state["repair_steps"].get("results", []), start=1
+            ):
+                response += (
+                    f"### {i}. {result.get('title', 'Resource')}\n\n"
+                    f"{result.get('body', '').strip()}\n\n"
+                    f"🔗 [Read more]({result.get('href', '#')})\n\n"
+                )
+
+        # -----------------------------
+        # Official iFixit guide
+        # -----------------------------
         else:
-            # Format official iFixit guide
             guide = state["repair_steps"]
-            response += f"\n\n# 🔧 {guide['title']}\n\n"
-            
-            # Add metadata in a friendly way
+
+            response += f"# 🔧 {guide.get('title', 'Repair Guide')}\n\n"
+
+            # Metadata row
             metadata = []
+
             if guide.get("subject"):
                 metadata.append(f"**Device:** {guide['subject']}")
+
             if guide.get("difficulty"):
-                difficulty = guide['difficulty']
-                emoji = "🟢" if "easy" in difficulty.lower() else "🟡" if "moderate" in difficulty.lower() else "🔴"
-                metadata.append(f"**Difficulty:** {emoji} {difficulty}")
+                diff = guide["difficulty"]
+                emoji = (
+                    "🟢" if "easy" in diff.lower()
+                    else "🟡" if "moderate" in diff.lower()
+                    else "🔴"
+                )
+                metadata.append(f"**Difficulty:** {emoji} {diff}")
+
             if guide.get("time_required"):
                 metadata.append(f"**Time:** ⏱️ {guide['time_required']}")
-            
+
             if metadata:
                 response += " | ".join(metadata) + "\n\n"
-            
+
+            # Overview
             if guide.get("introduction"):
-                response += f"## 📋 Overview\n{guide['introduction']}\n\n"
-            
+                response += "## 📋 Overview\n\n"
+                response += f"{guide['introduction']}\n\n"
+
+            # Tools
             if guide.get("tools"):
-                response += f"## 🛠️ Tools You'll Need\n"
+                response += "## 🛠️ Tools You'll Need\n\n"
                 for tool in guide["tools"]:
                     response += f"- {tool}\n"
                 response += "\n"
-            
+
+            # Parts
             if guide.get("parts"):
-                response += f"## 📦 Required Parts\n"
+                response += "## 📦 Required Parts\n\n"
                 for part in guide["parts"]:
                     response += f"- {part}\n"
                 response += "\n"
-            
-            response += f"## 📝 Step-by-Step Instructions\n\n"
-            
+
+            # Steps
+            response += "## 📝 Step-by-Step Instructions\n\n"
+
             for step in guide.get("steps", []):
-                response += f"### Step {step['orderby']}: {step['title']}\n\n"
-                response += f"{step['text']}\n\n"
-                
+                response += (
+                    f"### Step {step.get('orderby')}: "
+                    f"{step.get('title', '')}\n\n"
+                    f"{step.get('text', '').strip()}\n\n"
+                )
+
                 for img in step.get("images", []):
-                    response += f"![Step {step['orderby']}]({img['url']})\n\n"
+                    response += (
+                        f"![Step {step.get('orderby')}]"
+                        f"({img.get('url')})\n\n"
+                    )
+
+    # ---------------------------------------------------------------
+    # No results at all
+    # ---------------------------------------------------------------
     else:
-        response = "I couldn't find specific repair information for your query. "
-        response += "Could you provide more details about:\n"
-        response += "- The exact device model (e.g., 'iPhone 12 Pro')\n"
-        response += "- The specific issue or part you want to repair (e.g., 'screen replacement', 'battery')\n\n"
-        response += "I'm here to help you find the right repair guide! 🔍"
-    
-    # Add follow-up suggestions
+        response = (
+            "❌ **I couldn't find a repair guide for this request.**\n\n"
+            "Please provide:\n\n"
+            "- The exact device model (e.g., *PlayStation 5 Digital Edition*)\n"
+            "- The specific issue or part (e.g., *fan replacement*, *HDMI port*)\n\n"
+            "🔍 I'm ready to help once I have more details!"
+        )
+
+    # Follow-up section
     response += _get_follow_up_suggestions(state)
-    
-    # Add conversational closing if we have a guide
+
+    # Friendly closing
     if state.get("repair_steps") and not state.get("fallback_used"):
         response += _get_conversational_closing(state)
-    
+
     state["final_response"] = response
     state["tool_status"].append("Response ready")
-    
+
     return state
