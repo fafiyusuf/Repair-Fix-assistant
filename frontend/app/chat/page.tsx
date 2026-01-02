@@ -3,7 +3,7 @@
 import { BarChart3, ChevronLeft, ChevronRight, ExternalLink, LogOut, Menu, Send, Square, Wrench, X, ZoomIn } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useRef, useState } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -244,7 +244,7 @@ const MessageContent = ({ content }: { content: string }) => {
 
 MessageContent.displayName = 'MessageContent'
 
-export default function ChatPage() {
+function ChatPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -790,5 +790,26 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Loading fallback for Suspense
+function ChatPageLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading chat...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main export with Suspense boundary
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<ChatPageLoading />}>
+      <ChatPageContent />
+    </Suspense>
   )
 }
